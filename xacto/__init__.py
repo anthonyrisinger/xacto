@@ -729,7 +729,7 @@ class Xacto(object):
 class XactoParser(argparse.ArgumentParser):
 
     colors = {
-        'USE' : os.isatty(sys.stderr.fileno()),
+        'USE' : os.isatty(sys.stderr.fileno()) if hasattr(sys.stderr, 'fileno') else False,
         'BOLD'  :'\x1b[01;1m',
         'RED'   :'\x1b[31m',
         'GREEN' :'\x1b[32m',
