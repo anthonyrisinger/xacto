@@ -625,6 +625,10 @@ class Xacto(object):
                 file = file or sys.argv[0]
             if file.endswith(('/__init__.py', '/__main__.py')):
                 file = file[:-12]
+            if file.endswith(('/__init__.pyc', '/__main__.pyc')):
+                file = file[:-13]
+            if file.endswith(('/__init__.pyo', '/__main__.pyo')):
+                file = file[:-13]
             if not file:
                 file = 'xacto'
             file = pth.abspath(file)
