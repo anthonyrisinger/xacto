@@ -426,19 +426,24 @@ class Xacto(object):
 
                 node = None
                 dyn = list()
-                pfx, _, ns = lname.rpartition('.')
+                pfx = lname
+                sfx = lname
                 while pfx:
-                    node = nsroot._cache.get(pfx)
+                    pfx, sfx = pfx.rpartition('.')[::2]
+                    node = nsroot._cache.get(pfx or sfx)
                     if node:
                         break
-                    pfx, _, sfx = pfx.rpartition('.')
+
                     dyn.append(sfx)
 
-                assert node is not None
+                if str(node) == lname:
+                    # node already exists!
+                    continue
+
                 for missing in dyn[::-1]:
                     node = node(missing)
 
-                node = node(ns, pth.join(path, name))
+                node = node(sfx, pth.join(path, name))
 
     def find_module(self, name, path=None):
         loader = self._ns.find_module(name)
