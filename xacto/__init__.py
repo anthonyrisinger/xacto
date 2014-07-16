@@ -644,6 +644,7 @@ class Xacto(object):
                 '%s/*tools' % vfile,
                 '%s/*tools' % head,
                 '%s*tools' % name,
+                '%s/*tools' % name,
                 '*tools',
                 )
             for x in expands:
