@@ -9,7 +9,6 @@ High-level operational tool encapsulating all others!
 
 from __future__ import absolute_import
 from __future__ import print_function
-from pprint import pprint as print
 
 
 import sys, os
