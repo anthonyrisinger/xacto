@@ -19,7 +19,7 @@ import argparse, pkgutil, types, inspect, imp, re
 from itertools import imap, izip, ifilter, repeat, chain
 
 
-__version__ = '0.6.2'
+__version__ = '0.6.3'
 
 
 nil = type('nil', (int,), dict())(0)
