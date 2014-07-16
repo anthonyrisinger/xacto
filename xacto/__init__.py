@@ -383,7 +383,7 @@ class Xacto(object):
         """"""
 
     config = {
-        'store_bools': False,
+        'store_bools': True,
         }
 
     trans = {
