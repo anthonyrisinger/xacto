@@ -423,6 +423,9 @@ class Xacto(object):
                         pth.normpath(lname),
                         ).strip('.').replace('/', '.')
                 lname = re.sub('(?<=[.])[0-9]', '_\g<0>', lname)
+                if lname in nsroot._cache:
+                    # node already exists!
+                    continue
 
                 node = None
                 dyn = list()
@@ -435,10 +438,6 @@ class Xacto(object):
                         break
 
                     dyn.append(sfx)
-
-                if str(node) == lname:
-                    # node already exists!
-                    continue
 
                 for missing in dyn[::-1]:
                     node = node(missing)
@@ -524,7 +523,7 @@ class Xacto(object):
                 par.epilog = doc0
                 par.xacto = self
                 par._actions[0].help = argparse.SUPPRESS
-                if '-' in app:
+                if '-' in app and sub is not self:
                     sub._name_parser_map[app.replace('-', '_')] = par
                 if not key:
                     orphans.add(ns)
@@ -640,6 +639,17 @@ class Xacto(object):
 
         if not name:
             name = pth.basename(file_noext)
+
+        if rel is None:
+            try:
+                rel = __import__(name + '.tools', fromlist='*')
+            except ImportError:
+                pass
+            else:
+                # found {name}.tools
+                return cls.from_module(
+                    module=module, name=rel.__name__, rel=rel,
+                    )
 
         if not path:
             head = pth.dirname(file_noext)
