@@ -651,6 +651,9 @@ class Xacto(object):
                     module=module, name=rel.__name__, rel=rel,
                     )
 
+        if not path and rel is not None:
+            path = file_noext
+
         if not path:
             head = pth.dirname(file_noext)
             vfile = pth.join(head, name)
