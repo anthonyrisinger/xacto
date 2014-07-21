@@ -1,0 +1,17 @@
+{
+  "extensions": {
+    "python.commands": {
+      "wrap_console": {
+        "xacto": "xacto:main"
+      }
+    }
+  }, 
+  "generator": "distlib (0.1.9)", 
+  "metadata_version": "2.0", 
+  "name": "xacto", 
+  "provides": [
+    "xacto (0.6.3)"
+  ], 
+  "summary": "Placeholder for summary", 
+  "version": "0.6.3"
+}
