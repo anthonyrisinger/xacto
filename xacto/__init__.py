@@ -619,6 +619,17 @@ class Xacto(object):
         if isinstance(module, basestring):
             module = __import__(module, fromlist='*')
 
+        # FIXME: fixup __file__??? this initializer is too gnarly :(
+        if not hasattr(module, '__file__') and hasattr(rel, '__file__'):
+            module.__file__ = rel.__file__
+
+        if name is None:
+            try:
+                # set by zippy; records the resolved export key/entry
+                name = sys.export.key
+            except AttributeError:
+                pass
+
         if None in (path, name):
             file = (
                 getattr(rel, '__file__', '') or
@@ -626,6 +637,8 @@ class Xacto(object):
                 )
             if module.__name__ == '__main__':
                 file = file or sys.argv[0]
+            if file == '-c':
+                file = os.path.basename(sys.executable)
             if file.endswith(('/__init__.py', '/__main__.py')):
                 file = file[:-12]
             if file.endswith(('/__init__.pyc', '/__main__.pyc')):
