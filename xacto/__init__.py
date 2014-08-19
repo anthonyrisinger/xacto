@@ -508,7 +508,23 @@ class Xacto(object):
                         help=':= { .%s }' % ctx,
                         )
 
-                _rawdoc = getattr(potential, '__doc__', None)
+                potential_call = getattr(potential, '__call__', None)
+                potential_self = getattr(potential_call, '__self__', None)
+                if potential_self is potential:
+                    # a free function, neither bound nor unbound
+                    potential_call = potential
+                    potential_self = None
+                #FIXME: detect this differently else you can't simply
+                # fun0.attr = fun1
+                potential_func = inspect.isfunction(potential_call)
+                potential_meth = inspect.ismethod(potential_call)
+                potential_args = None
+                potential_defs = None
+
+                _rawdoc = (
+                    getattr(potential, '__doc__', None) or
+                    getattr(potential_call, '__doc__', None)
+                    )
                 doc = name_re.sub(name_get, str(trans(_rawdoc)))
                 doc = list(doc.partition('\n')[::2])
                 doc[0] = kill_re.sub('', doc[0])
@@ -529,33 +545,27 @@ class Xacto(object):
                     orphans.add(ns)
                     continue
 
-                key = None
                 spec = None
-                offset = None
-                attrs = [(None, 0)]
-                if isinstance(potential, type):
-                    attrs.append(('__init__', 1))
-                    attrs.append(('__new__', 1))
-                attrs.append(('__call__', 0))
-                for key, offset in attrs:
-                    try:
-                        attr = key and getattr(potential, key)
-                        spec = inspect.getargspec(attr or potential)
-                    except OSError:
-                        continue
-                    except TypeError:
-                        break
-                    else:
-                        break
+                try:
+                    spec = inspect.getargspec(potential_call)
+                except TypeError:
+                    pass
+                except OSError:
+                    pass
                 if not spec:
                     continue
 
                 nil = object()
                 if spec.defaults is None:
                     spec = spec._replace(defaults=[])
-                defaults = [nil]*(len(spec.args)-len(spec.defaults))
-                defaults.extend(spec.defaults)
-                for arg, default in zip(spec.args, defaults):
+                potential_args = spec.args[potential_meth:]
+                potential_defs = spec.defaults[:]
+                potential_diff = len(potential_defs) - len(potential_args)
+                if potential_diff > 0:
+                    potential_defs = potential_defs[potential_diff:]
+                defaults = [nil]*(len(potential_args)-len(potential_defs))
+                defaults.extend(potential_defs)
+                for arg, default in zip(potential_args, defaults):
                     kwds = {
                         'help': trans(None),
                         'dest': arg,
@@ -575,22 +585,78 @@ class Xacto(object):
                         elif default is not None:
                             kwds['type'] = default.__class__
                             kwds['metavar'] = kwds['type'].__name__.upper()
-                    if hasattr(default, '_argspec'):
-                        arginst = default(default, par, potential, arg, kwds)
-                    else:
-                        pfx = '-' * min(len(arg), 2)
-                        arginst = par.add_argument(pfx + arg, **kwds)
-                    setattr(potential, arg, arginst)
+
+                    #FIXME: factor this out, almost copypasta with above
+                    proto_attr = getattr(potential, arg, None)
+                    proto_call = getattr(proto_attr, '__call__', None)
+                    proto_self = getattr(proto_call, '__self__', None)
+                    if proto_self is proto_attr:
+                        # a free function, neither bound nor unbound
+                        proto_call = proto_attr
+                        proto_self = None
+                    proto_func = inspect.isfunction(proto_call)
+                    proto_meth = inspect.ismethod(proto_call)
+                    proto_spec = None
+                    proto_args = None
+                    proto_defs = None
+                    proto_doc = None
+
+                    if proto_call and (proto_func or proto_meth):
+                        proto_spec = inspect.getargspec(proto_call)
+                        if proto_spec.defaults is None:
+                            proto_spec = proto_spec._replace(defaults=[])
+                        proto_args = proto_spec.args[proto_meth:]
+                        proto_defs = proto_spec.defaults[:]
+                        proto_diff = len(proto_defs) - len(proto_args)
+                        if proto_diff > 0:
+                            proto_defs = proto_defs[proto_diff:]
+                        if proto_args and not proto_spec.varargs:
+                            kwds['nargs'] = len(proto_args)
+                            if kwds['nargs'] == 1:
+                                if proto_defs:
+                                    kwds['const'] = proto_defs[0]
+                                    kwds['nargs'] = '?'
+                        elif not proto_args and proto_spec.varargs:
+                            kwds['nargs'] = '*'
+                        elif proto_args and proto_spec.varargs:
+                            #TODO: this should really be something like {2,3}
+                            # http://bugs.python.org/issue11354
+                            kwds['nargs'] = '+'
+                        proto_doc = trans(proto_call.__doc__)
+                        if proto_doc:
+                            kwds['help'] = proto_doc
+                        if proto_spec.varargs:
+                            #TODO: add support for multiple metavars
+                            kwds['metavar'] = proto_spec.varargs.upper()
+                        elif len(proto_args) == 1:
+                            #TODO: add support for multiple metavars
+                            kwds['metavar'] = proto_args[0].upper()
+                        #elif proto_args:
+                        #    #TODO: add support for multiple metavars
+                        #    kwds['metavar'] = proto_args[0].upper()
+                        #FIXME: detect/handle better... incompatible signature
+                        # eg. cls.__call__(arg=True, ...) and cls.arg(*list)
+                        kwds.pop('action', None)
+
+                    pfx = '-' * min(len(arg), 2)
+                    arginst = par.add_argument(pfx + arg, **kwds)
                 if spec.varargs:
-                    arginst = par.add_argument(
+                    #FIXME: inject this into the above codepath
+                    # so it gets handled like any other argument
+                    proto_attr = getattr(potential, spec.varargs, None)
+                    proto_doc = getattr(proto_attr, '__doc__', None)
+                    par.add_argument(
                         'xacto_vary',
                         metavar=spec.varargs,
+                        help=proto_doc,
+                        # redundant?
+                        default=list(),
                         nargs='*',
                         )
                 par.set_defaults(
                     xacto_ns=ns,
                     xacto_call=potential,
-                    xacto_args=spec.args,
+                    xacto_args=potential_args,
                     xacto_vary=list(),
                     )
         #FIXME: this only works because we [currently] preload all modules
