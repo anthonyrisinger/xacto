@@ -653,6 +653,11 @@ class Xacto(object):
                         default=list(),
                         nargs='*',
                         )
+
+                #TODO: probably want to expand this in the future...
+                if potential_meth and not potential_self:
+                    potential = potential()
+
                 par.set_defaults(
                     xacto_ns=ns,
                     xacto_call=potential,
