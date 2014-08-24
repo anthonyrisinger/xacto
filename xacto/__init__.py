@@ -15,7 +15,6 @@ import warnings
 from os import path as pth
 
 import argparse, pkgutil, types, inspect, imp, re
-from itertools import imap, izip, ifilter, repeat, chain
 
 
 __version__ = '0.7.1'
@@ -290,7 +289,7 @@ class Namespace(object):
             module = sys.modules[str(loader)] = loader._module
             try:
                 if loader._code not in (None, True, False):
-                    exec loader._code in module.__dict__
+                    eval(loader._code, module.__dict__)
             except:
                 sys.modules.pop(module.__name__)
                 raise
@@ -301,7 +300,7 @@ class Namespace(object):
     def walk(self, skips=tuple(), rskips=tuple()):
         if self not in skips:
             yield self
-        for key, gen1 in sorted(vars(self).iteritems()):
+        for key, gen1 in sorted(vars(self).items()):
             if not (gen1 in rskips or key.startswith('_')):
                 if isinstance(gen1, Namespace):
                     for gen2 in gen1.walk():
@@ -464,7 +463,7 @@ class Xacto(object):
             }
         name_re = re.compile('|'.join(name_map), re.IGNORECASE)
         kill_re = re.compile('|'.join(
-            kv[0] for kv in self.trans.iteritems() if kv[0] and kv[1] is None
+            kv[0] for kv in self.trans.items() if kv[0] and kv[1] is None
             ), re.IGNORECASE)
 
         #FIXME: impl ctx manager for sys.meta_path/sys.modules
@@ -524,7 +523,7 @@ class Xacto(object):
                 doc = list(doc.partition('\n')[::2])
                 doc[0] = kill_re.sub('', doc[0])
                 doc[0] = re.sub(' {2,}', ' ', doc[0])
-                doc = map(trans, doc)
+                doc = list(map(trans, doc))
                 doc0 = _rawdoc and doc[0] or None
                 doc01 = doc[0] or doc[1]
                 doc10 = doc[1] or doc[0]
@@ -682,7 +681,8 @@ class Xacto(object):
 
         if module is None:
             module = __name__
-        if isinstance(module, basestring):
+        # TODO: should probably depend on six
+        if isinstance(module, (type(u''), type(''))):
             module = __import__(module, fromlist='*')
 
         # FIXME: fixup __file__??? this initializer is too gnarly :(
