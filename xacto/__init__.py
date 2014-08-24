@@ -512,11 +512,7 @@ class Xacto(object):
                 if potential_self is potential:
                     # a free function, neither bound nor unbound
                     potential_call = potential
-                    potential_self = None
-                #FIXME: detect this differently else you can't simply
-                # fun0.attr = fun1
-                potential_func = inspect.isfunction(potential_call)
-                potential_meth = inspect.ismethod(potential_call)
+                    potential_self = False
                 potential_args = None
                 potential_defs = None
 
@@ -557,7 +553,7 @@ class Xacto(object):
                 nil = object()
                 if spec.defaults is None:
                     spec = spec._replace(defaults=[])
-                potential_args = spec.args[potential_meth:]
+                potential_args = spec.args[potential_self is not False:]
                 potential_defs = spec.defaults[:]
                 potential_diff = len(potential_defs) - len(potential_args)
                 if potential_diff > 0:
@@ -592,19 +588,17 @@ class Xacto(object):
                     if proto_self is proto_attr:
                         # a free function, neither bound nor unbound
                         proto_call = proto_attr
-                        proto_self = None
-                    proto_func = inspect.isfunction(proto_call)
-                    proto_meth = inspect.ismethod(proto_call)
+                        proto_self = False
                     proto_spec = None
                     proto_args = None
                     proto_defs = None
                     proto_doc = None
 
-                    if proto_call and (proto_func or proto_meth):
+                    if proto_call:
                         proto_spec = inspect.getargspec(proto_call)
                         if proto_spec.defaults is None:
                             proto_spec = proto_spec._replace(defaults=[])
-                        proto_args = proto_spec.args[proto_meth:]
+                        proto_args = proto_spec.args[proto_self is not False:]
                         proto_defs = proto_spec.defaults[:]
                         proto_diff = len(proto_defs) - len(proto_args)
                         if proto_diff > 0:
@@ -653,8 +647,10 @@ class Xacto(object):
                         nargs='*',
                         )
 
-                #TODO: probably want to expand this in the future...
-                if potential_meth and not potential_self:
+                # False : function
+                #  None : method (unbound)
+                #     * : method (bound)
+                if potential_self is None:
                     potential = potential()
 
                 par.set_defaults(
