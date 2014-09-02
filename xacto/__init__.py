@@ -585,9 +585,10 @@ class Xacto(object):
                     proto_call = getattr(proto_attr, '__call__', None)
                     proto_self = getattr(proto_call, '__self__', None)
                     if proto_self is proto_attr:
-                        # a free function, neither bound nor unbound
                         proto_call = proto_attr
-                        proto_self = False
+                        #FIXME: this feels too brittle
+                        if getattr(proto_attr, 'im_class', None) is potential:
+                            proto_self = potential_self
                     proto_spec = None
                     proto_args = None
                     proto_defs = None
