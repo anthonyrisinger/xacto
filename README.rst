@@ -1,7 +1,7 @@
 Xacto
 ~~~~~
 
-**a typelib and CLI analyzer/generator**
+**CLI Analyzer/Generator**
 
 Introspect, compose, marshal and export arbitrary callables into a unified,
 hierarchical, command-line interface (CLI)
@@ -11,12 +11,11 @@ Features
 
 auto-find tools
 scan signatures and export as CLI node
-if default is callable, call it to setup arg
 
 Why
 ---
 
-FAST! EASY! natural import usage! --help is decent-ish with types/etc! AH!
+FAST! EASY! natural import usage! ``--help`` is decent!
 
 Quickstart
 ----------
@@ -25,46 +24,97 @@ Quickstart
 
     # pip install xacto
 
-#. Run::
+#. Prepare::
 
-    # ln -s /path/to/bin/xacto do
+    # ln -s $(which xacto) do
 
 #. Create python file at ``tools/work.py``::
 
-    __all__ = ["easy", "hard"]
-    #__xacto__ = {...}
+    from pprint import pprint
+
+
+    __all__ = ["easy", "hard", "manual"]
+
 
     def easy(method, speed=16, *tasks):
-        print(locals())
-    #easy.__xacto__ = {...}
+        """The simple version"""
+        pprint(locals())
+
 
     def hard(method, speed=32, *tasks, **params):
-        print(locals())
-    #hard.__xacto__ = {...}
+        """The difficult version"""
+        pprint(locals())
 
-#. Run::
 
-    # ./do work easy --method=never task1 task2
+    class manual(object):
+        """The laborious version"""
 
-#. Run::
+        def __call__(self, method, speed, *tasks):
+            pprint(locals())
 
-    # ./do work hard --speed=64 --method=cheat --code=iddqd taskN
+        def method(self, process):
+            """Howto perform operation"""
+
+        def speed(self, ops=64):
+            """Operations per second"""
+
+        def tasks(self, pri, sec, ter):
+            """Various tasks"""
+
+#. View ``--help``::
+
+    # ./do work --help
+    usage: do work OBJECT ...
+
+    additional modules:
+      OBJECT  := { .do.work }
+        easy  The simple version
+        hard  The difficult version
+        manual
+              The laborious version
+
+#. View object-level ``--help``::
+
+    usage: do work manual --method PROCESS --speed [OPS] [tasks [tasks ...]]
+
+    The laborious version
+
+    positional arguments:
+      tasks             Various tasks
+
+    optional arguments:
+      --method PROCESS  Howto perform operation
+      --speed [OPS]     Operations per second
+
+    The laborious version
+
+#. Run tool (function)::
+
+    # ./do work hard --method=cheat --code=iddqd taskN
+    {'method': 'cheat',
+     'params': {'code': 'iddqd'},
+     'speed': 32,
+     'tasks': ('taskN',)}
+
+#. Run tool (class)::
+
+    # ./do work manual --method=cheap --speed=256 taskN
+    {'method': 'cheap',
+     'self': <do.work.manual object at ...>,
+     'speed': '256',
+     'tasks': ('taskN',)}
 
 Limitations
 -----------
 
 - true/false quirkyness (default=True means --default flips to False)
-- can't handle lists (--arg a b c --other ...)
 
 TODO
 ----
 
 - RELEASE!
-- setuptools
-- symlink to binary to create new
 - testing: set-like functions, import semantics.. everything
 - handle bools better
-- handle lists (--arg a b c --other ...)
 - detect output
 - standard output structure
 - prettify to tty
@@ -75,4 +125,4 @@ TODO
 - integrate with zippy.shell
 - tab-completion
 - auto-reduce common components for aliases
-- bind tools to xacto object (eg. celery/waf)
+- make xacto object accessible to tools
