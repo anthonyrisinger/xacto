@@ -609,6 +609,9 @@ class Xacto(object):
                                 if proto_defs:
                                     kwds['const'] = proto_defs[0]
                                     kwds['nargs'] = '?'
+                                else:
+                                    # don't produce a list of one item
+                                    kwds['nargs'] = None
                         elif not proto_args and proto_spec.varargs:
                             kwds['nargs'] = '*'
                         elif proto_args and proto_spec.varargs:
