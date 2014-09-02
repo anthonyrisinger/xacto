@@ -75,6 +75,7 @@ Quickstart
 
 #. View object-level ``--help``::
 
+    # ./do work manual --help
     usage: do work manual --method PROCESS --speed [OPS] [tasks [tasks ...]]
 
     The laborious version
