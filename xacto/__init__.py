@@ -176,9 +176,6 @@ class feature(mapo):
         if keys is NotImplemented:
             return keys
 
-        get = lambda x: None
-        if hasattr(other, 'keys'):
-            get = other.__getitem__
         for key in keys - ikeys:
             self[key] = get(key)
         for key in ikeys - keys:
