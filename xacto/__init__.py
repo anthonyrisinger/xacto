@@ -12,6 +12,8 @@ from __future__ import print_function
 
 import sys, os
 import warnings
+import operator
+import collections
 from os import path as pth
 
 import argparse, pkgutil, types, inspect, imp, re
@@ -708,6 +710,47 @@ class Xacto(object):
                             #TODO: this should really be something like {2,3}
                             # http://bugs.python.org/issue11354
                             kwds['nargs'] = '+'
+                        if kwds.get('nargs') is not None:
+                            proto_type_args = list(proto_args)
+                            if proto_spec.varargs:
+                                # special acccessor for *args
+                                slicer = slice(len(proto_args), None)
+                                getter = property(operator.itemgetter(slicer))
+                                proto_type_args.append(proto_spec.varargs)
+                            proto_type = collections.namedtuple(
+                                proto_call.__name__,
+                                proto_type_args,
+                                )
+                            if proto_spec.varargs:
+                                # special acccessor for *args
+                                setattr(proto_type, proto_spec.varargs, getter)
+                            def proto_type_new(cls, *args):
+                                diff = len(proto_args) - len(args)
+                                if diff > 0:
+                                    #FIXME: do this differently...?
+                                    args += (None,) * diff
+                                return tuple.__new__(cls, args)
+                            def proto_type_repr(self, *args):
+                                qualname = '.'.join([
+                                    proto_type.__module__, name,
+                                    proto_type.__name__, 'type',
+                                    ])
+                                fields = ', '.join(
+                                    '{0}={1!r}'.format(f, getattr(self, f))
+                                    for f in self._fields
+                                    )
+                                return '{0}({1})'.format(qualname, fields)
+                            proto_type.__module__ = str(ns)
+                            # originals fail with variable-length input
+                            # and repr provides more accurate information
+                            proto_type.__new__ = staticmethod(proto_type_new)
+                            proto_type.__repr__ = proto_type_repr
+                            #FIXME: this REALLY needs to be object based!
+                            # make the generated type available
+                            proto_fun = getattr(
+                                proto_call, '__func__', proto_call,
+                                )
+                            setattr(proto_fun, 'type', proto_type)
                         proto_doc = trans(proto_call.__doc__)
                         if proto_doc:
                             kwds['help'] = proto_doc
