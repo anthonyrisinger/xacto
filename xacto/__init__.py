@@ -651,6 +651,9 @@ class Xacto(object):
                     potential_defs = potential_defs[potential_diff:]
                 defaults = [nil]*(len(potential_args)-len(potential_defs))
                 defaults.extend(potential_defs)
+                if spec.varargs:
+                    potential_args.append(spec.varargs)
+                    defaults.append(nil)
                 for arg, default in zip(potential_args, defaults):
                     kwds = {
                         'help': trans(None),
@@ -732,8 +735,8 @@ class Xacto(object):
                                 return tuple.__new__(cls, args)
                             def proto_type_repr(self, *args):
                                 qualname = '.'.join([
-                                    proto_type.__module__, name,
-                                    proto_type.__name__, 'type',
+                                    self.__class__.__module__, name,
+                                    self.__class__.__name__, 'type',
                                     ])
                                 fields = ', '.join(
                                     '{0}={1!r}'.format(f, getattr(self, f))
@@ -768,20 +771,19 @@ class Xacto(object):
                         kwds.pop('action', None)
 
                     pfx = '-' * min(len(arg), 2)
+                    if arg == spec.varargs:
+                        #TODO: *args (positionals) will ALWAYS be a tuple to
+                        # the final __call__(...); maybe we should chunk them
+                        # into appropriate groups and call proto_type(*group)?
+                        # else *args will ALWAYS be a tuple of length 1 with a
+                        # single proto_type(...) object?
+                        kwds['nargs'] = kwds.pop('nargs', None) or '*'
+                        kwds.pop('required', None)
+                        kwds.pop('metavar', None)
+                        kwds.pop('dest', None)
+                        kwds.pop('type', None)
+                        pfx = ''
                     arginst = par.add_argument(pfx + arg, **kwds)
-                if spec.varargs:
-                    #FIXME: inject this into the above codepath
-                    # so it gets handled like any other argument
-                    proto_attr = getattr(potential, spec.varargs, None)
-                    proto_doc = getattr(proto_attr, '__doc__', None)
-                    par.add_argument(
-                        'xacto_vary',
-                        metavar=spec.varargs,
-                        help=proto_doc,
-                        # redundant?
-                        default=list(),
-                        nargs='*',
-                        )
 
                 # False : function
                 #  None : method (unbound)
@@ -793,7 +795,6 @@ class Xacto(object):
                     xacto_ns=ns,
                     xacto_call=potential,
                     xacto_args=potential_args,
-                    xacto_vary=list(),
                     )
         #FIXME: this only works because we [currently] preload all modules
         sys.meta_path.remove(self)
@@ -954,12 +955,33 @@ class Xacto(object):
             # see DeferredModule.dict_cls.__missing__
             tuple(import_all())
 
-        call = kwds.pop('xacto_call')
-        args = list(
-            kwds.pop(x)
-            for x in kwds.pop('xacto_args')
-            ) + kwds.pop('xacto_vary')
-        return call(*args, **kwds)
+        args = list()
+        xacto_call = kwds.pop('xacto_call')
+        xacto_args = kwds.pop('xacto_args')
+        for arg_name in xacto_args:
+            arg = kwds.pop(arg_name)
+            arg_new = None
+            arg_prep = getattr(xacto_call, arg_name, None)
+            arg_type = getattr(arg_prep, 'type', None)
+            if not hasattr(arg_prep, '__call__'):
+                arg_prep = None
+            if not hasattr(arg_type, '__call__'):
+                arg_type = None
+            if arg_type:
+                #TODO: only list objects get unpacked? eliminate this?
+                # call this twice because arg_type might fill in any gaps
+                arg = arg_type(*arg)
+            if arg_prep:
+                #TODO: only list objects get unpacked? eliminate this?
+                arg_new = arg_prep(*arg) if arg_type else arg_prep(arg)
+            if arg_new is not None:
+                arg = arg_new
+                if arg_type:
+                    arg = arg_type(*arg)
+            args.append(arg)
+
+        rv = xacto_call(*args, **kwds)
+        return rv
 
 
 class XactoParser(argparse.ArgumentParser):
