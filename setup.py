@@ -111,7 +111,5 @@ setup(
         'console_scripts': [
             'xacto=xacto:main',
             ],
-        'xacto.tools': [
-            ],
         },
     )
