@@ -727,27 +727,36 @@ class Xacto(object):
                             if proto_spec.varargs:
                                 # special acccessor for *args
                                 setattr(proto_type, proto_spec.varargs, getter)
-                            def proto_type_new(cls, *args):
-                                diff = len(proto_args) - len(args)
-                                if diff > 0:
-                                    #FIXME: do this differently...?
-                                    args += (None,) * diff
-                                return tuple.__new__(cls, args)
-                            def proto_type_repr(self, *args):
-                                qualname = '.'.join([
-                                    self.__class__.__module__, name,
-                                    self.__class__.__name__, 'type',
-                                    ])
-                                fields = ', '.join(
-                                    '{0}={1!r}'.format(f, getattr(self, f))
-                                    for f in self._fields
-                                    )
-                                return '{0}({1})'.format(qualname, fields)
+                            def proto_type_new_closure(
+                                proto_spec=proto_spec,
+                                proto_args=proto_args,
+                                ):
+                                def proto_type_new(cls, *args):
+                                    diff = len(proto_args) - len(args)
+                                    if diff > 0:
+                                        #FIXME: do this differently...?
+                                        args += (None,) * diff
+                                    return tuple.__new__(cls, args)
+                                return proto_type_new
+                            def proto_type_repr_closure(
+                                name=name,
+                                ):
+                                def proto_type_repr(self, *args):
+                                    qualname = '.'.join([
+                                        self.__class__.__module__, name,
+                                        self.__class__.__name__, 'type',
+                                        ])
+                                    fields = ', '.join(
+                                        '{0}={1!r}'.format(f, getattr(self, f))
+                                        for f in self._fields
+                                        )
+                                    return '{0}({1})'.format(qualname, fields)
+                                return proto_type_repr
                             proto_type.__module__ = str(ns)
                             # originals fail with variable-length input
                             # and repr provides more accurate information
-                            proto_type.__new__ = staticmethod(proto_type_new)
-                            proto_type.__repr__ = proto_type_repr
+                            proto_type.__new__ = staticmethod(proto_type_new_closure())
+                            proto_type.__repr__ = proto_type_repr_closure()
                             #FIXME: this REALLY needs to be object based!
                             # make the generated type available
                             proto_fun = getattr(
@@ -970,6 +979,13 @@ class Xacto(object):
             if arg_type:
                 #TODO: only list objects get unpacked? eliminate this?
                 # call this twice because arg_type might fill in any gaps
+                if arg is None:
+                    arg = tuple()
+                else:
+                    try:
+                        arg = tuple(arg)
+                    except TypeError:
+                        arg = (arg,)
                 arg = arg_type(*arg)
             if arg_prep:
                 #TODO: only list objects get unpacked? eliminate this?
