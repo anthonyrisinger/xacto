@@ -19,7 +19,7 @@ from os import path as pth
 import argparse, pkgutil, types, inspect, imp, re
 
 
-__version__ = '0.8.3'
+__version__ = '0.8.4'
 
 
 nil = type('nil', (int,), dict())(0)
