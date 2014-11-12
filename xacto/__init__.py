@@ -213,15 +213,21 @@ class DeferredModule(object):
             # maybe drop fake and reload real module
             if attr is None and ':' in name:
                 name, attr = name.rsplit(':', 1)
-            resolved = sys.modules[name]
-            if isinstance(resolved, DeferredModule.marker_cls):
-                sys.modules.pop(name)
+
+            resolved = sys.modules.get(name)
+            while isinstance(resolved, DeferredModule.marker_cls):
+                # make sure we drop any fake parents as well
+                sys.modules.pop(resolved)
+                resolved = sys.modules.get(resolved.rpartition('.')[0])
+            if not resolved:
                 # find a real module
-                resolved = module = __import__(name, fromlist='bleh')
-                if attr:
-                    resolved = getattr(module, attr)
-                # update the namespace
-                self[key] = resolved
+                resolved = __import__(name, fromlist=['__doc__'])
+            if attr:
+                # handle from X import Y
+                resolved = getattr(resolved, attr)
+
+            # update the namespace
+            self[key] = resolved
             return resolved
 
         def import_all(self):
