@@ -338,6 +338,16 @@ class Namespace(object):
             pathname = pth.join(pathname, '__init__.py')
             if pth.isfile(pathname):
                 module.__file__ = pathname
+        else:
+            pathname_head, pathname_tail = os.path.split(pathname)
+            importer = pkgutil.get_importer(pathname_head)
+            try:
+                code = importer.get_data(pathname)
+            except IOError:
+                code = None
+            if code:
+                module.__file__ = pathname
+                self._code = compile(code, pathname, 'exec')
 
         if pkgpath:
             module.__path__ = pkgpath
@@ -458,6 +468,41 @@ class Namespace(object):
         return '.'.join(self.addr)
 
 
+def _walk(top, topdown=True, onerror=None, followlinks=False):
+    if os.path.exists(top):
+        return os.walk(top)
+
+    # zipimporter?
+    importer = pkgutil.get_importer(top)
+    if not hasattr(importer, '_files'):
+        return tuple()
+
+    def walker(split):
+        for key in sorted(split):
+            yield split[key]
+
+    def sorter(value):
+        # make sure directories sort properly
+        key = value.split('/')
+        return key
+
+    split = dict()
+    files = sorted(importer._files, key=sorter)
+    sprefix = importer.prefix.rstrip('/')
+    for key in files:
+        if key.startswith(importer.prefix):
+            head, tail = os.path.split(key)
+            if head not in split:
+                fullpath = os.path.join(importer.archive, head)
+                split[head] = (fullpath, [], [])
+                if head != sprefix:
+                    head2, tail2 = os.path.split(head)
+                    split[head2][1].append(tail2)
+            split[head][2].append(tail)
+
+    return walker(split)
+
+
 class Xacto(object):
     """top-level entry point and root Namespace(...)
     """
@@ -492,7 +537,7 @@ class Xacto(object):
         nspath = self._ns.path
         addr = tuple(self._ns.addr)
 
-        for (path, dirs, files) in os.walk(nspath):
+        for (path, dirs, files) in _walk(nspath):
             dirs[:] = sorted(set(dirs) - set(
                 d for d in dirs if d.startswith('_')
                 ))
