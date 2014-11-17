@@ -10,8 +10,8 @@
   "metadata_version": "2.0", 
   "name": "xacto", 
   "provides": [
-    "xacto (0.8.4)"
+    "xacto (0.8.5)"
   ], 
   "summary": "Placeholder for summary", 
-  "version": "0.8.4"
+  "version": "0.8.5"
 }
