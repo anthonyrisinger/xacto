@@ -230,7 +230,12 @@ class MockModule(object):
             )
 
     def load_module(self, name):
-        sys.modules[name] = self
+        #TODO: verify works in python3
+        # normally loaders are responsible for putting loaded modules into
+        # sys.modules... if available, python will prefer the module there
+        # over the one returned here (allows modules to replace themselves
+        # during import). however, we explicitly DO NOT update sys.modules
+        # because we want every import to create fresh mocks!
         return self
 
     @property
@@ -547,11 +552,6 @@ class Xacto(object):
     def _defer_import(self, target, key, module):
         cache = self._deferred[(target['__name__'], key)]
         cache.append(module)
-
-        #TODO: handle better
-        for name, module in list(sys.modules.items()):
-            if isinstance(module, MockModule):
-                sys.modules.pop(name)
 
     def _maybe_import(self, target, key):
         cache = self._deferred[(target['__name__'], key)]
