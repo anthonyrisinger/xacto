@@ -21,7 +21,7 @@ from collections import defaultdict
 from itertools import count
 
 
-__version__ = '0.8.5'
+__version__ = '0.8.6'
 
 
 nil = type('nil', (int,), dict())(0)
