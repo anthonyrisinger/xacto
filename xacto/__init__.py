@@ -17,6 +17,8 @@ import collections
 from os import path as pth
 
 import argparse, pkgutil, types, inspect, imp, re
+from collections import defaultdict
+from itertools import count
 
 
 __version__ = '0.8.5'
@@ -190,67 +192,80 @@ record = mapo.matic(features='attr set')
 automap = record.matic(features='auto')
 
 
+#TODO: unify with DeferredModule
+class MockModule(object):
+
+    _index = count(1)
+
+    def __init__(self, name, doc=None, importer=None):
+        self.__dict__.update({
+            '__loader__': self,
+            '__path__': list(),
+            '__name__': name,
+            '__doc__': doc,
+            'gets': list(),
+            'sets': list(),
+            'index': self._index.next(),
+            'importer': importer,
+            })
+
+    def __getattr__(self, key):
+        if key not in self.gets:
+            self.gets.append(key)
+        return self
+
+    def __setattr__(self, key, attr):
+        if attr not in self.sets:
+            self.sets.append(attr)
+        return None
+
+    def __repr__(self):
+        return '<{}.{}[{}]: {}: gets:{} sets:{}>'.format(
+            __name__,
+            self.__class__.__name__,
+            self.index,
+            self.__name__,
+            self.gets,
+            self.sets,
+            )
+
+    def load_module(self, name):
+        sys.modules[name] = self
+        return self
+
+    @property
+    def iter_imports(self):
+        for sub in self.sets:
+            yield sub
+
+            for sub2 in sub.iter_imports:
+                yield sub2
+
+
 class DeferredModule(object):
-
-    class marker_cls(str):
-
-        def __getattr__(self, key):
-            return self.__class__(self + ':' + key)
-
-    class loader_cls(object):
-
-        def load_module(self, name):
-            module = sys.modules[name] = DeferredModule.marker_cls(name)
-            return module
 
     class dict_cls(dict):
 
         def __init__(self, *args, **kwds):
-            self.deferred = dict()
             super(DeferredModule.dict_cls, self).__init__(*args, **kwds)
-
-        def import_one(self, key, name, attr=None):
-            # maybe drop fake and reload real module
-            if attr is None and ':' in name:
-                name, attr = name.rsplit(':', 1)
-
-            resolved = sys.modules.get(name)
-            while isinstance(resolved, DeferredModule.marker_cls):
-                # make sure we drop any fake parents as well
-                sys.modules.pop(resolved)
-                resolved = sys.modules.get(resolved.rpartition('.')[0])
-            if not resolved:
-                # find a real module
-                resolved = __import__(name, fromlist=['__doc__'])
-            if attr:
-                # handle from X import Y
-                resolved = getattr(resolved, attr)
-
-            # update the namespace
-            self[key] = resolved
-            return resolved
-
-        def import_all(self):
-            # see __missing__ for why this exists
-            #FIXME: needs ordereddict or similar here
-            for key, name in self.deferred.items():
-                attr = None
-                yield self.import_one(key, name, attr)
+            self.importers = set()
 
         def __missing__(self, key):
-            name = self.deferred.pop(key, None)
-            if name:
-                # on-demand loading seems to only work for code executing at
-                # the module level. a function defined therein is properly
-                # bound (fun.__globals__ is self), but DOES NOT trigger
-                # __missing__ during symbol resolution, ultimately failing with
-                # NameError... as such, xacto preloads all imports once a
-                # tool is "selected".
-                msg = 'early import in {0}: {1}'.format(
-                    self['__name__'], name.replace(':', '.'),
-                    )
-                warnings.warn(msg, ImportWarning, stacklevel=2)
-                return self.import_one(key, name)
+            for importer in self.importers:
+                resolved = importer._maybe_import(self, key)
+                if resolved:
+                    # on-demand loading in py2 only works for code executing at
+                    # the module level. a function defined therein is properly
+                    # bound (fun.__globals__ is self), but DOES NOT trigger
+                    # __missing__ during symbol resolution, ultimately failing
+                    # with NameError... as such, xacto preloads all imports
+                    # once a tool is "selected".
+                    msg = 'early import in {0}: {1}'.format(
+                        self['__name__'],
+                        resolved.__name__,
+                        )
+                    warnings.warn(msg, ImportWarning, stacklevel=2)
+                    return self[key]
 
             try:
                 return super(DeferredModule.dict_cls, self).__missing__(key)
@@ -260,8 +275,10 @@ class DeferredModule(object):
         def __setitem__(self, key, item):
             # if it's a placeholder, don't actually save it... the first
             # request will then fire __missing__ instead
-            if isinstance(item, DeferredModule.marker_cls):
-                self.deferred[key] = item
+            if isinstance(item, MockModule):
+                importer = item.importer
+                importer._defer_import(self, key, item)
+                self.importers.add(importer)
                 return None
 
             return super(DeferredModule.dict_cls, self).__setitem__(key, item)
@@ -527,11 +544,56 @@ class Xacto(object):
         'junk': None,
         }
 
+    def _defer_import(self, target, key, module):
+        cache = self._deferred[(target['__name__'], key)]
+        cache.append(module)
+
+        #TODO: handle better
+        for name, module in list(sys.modules.items()):
+            if isinstance(module, MockModule):
+                sys.modules.pop(name)
+
+    def _maybe_import(self, target, key):
+        cache = self._deferred[(target['__name__'], key)]
+        if not cache:
+            return False
+
+        for module in cache:
+            self._deferred_ok = False
+            try:
+                resolved = __import__(module.__name__, fromlist=module.gets)
+                for submodule in module.iter_imports:
+                    __import__(submodule.__name__, fromlist=submodule.gets)
+                for attr in module.gets:
+                    resolved = getattr(resolved, attr)
+            finally:
+                self._deferred_ok = True
+
+        target[key] = resolved
+        return resolved
+
+    def _import_all(self):
+        imports = list()
+        #TODO: handle better
+        for k, modules in self._deferred.items():
+            name, key = k
+            for module in modules:
+                imports.append((
+                    module.index,
+                    sys.modules[name],
+                    key,
+                    ))
+
+        imports.sort()
+        for index, module, key in imports:
+            self._maybe_import(module.__dict__, key)
+
     def __init__(self, ns):
         self._ns = ns
         self._parser = None
         self._subparser = None
-        self._deferred = dict()
+        self._deferred = defaultdict(list)
+        self._deferred_ok = True
 
         nsroot = self._ns.root
         nspath = self._ns.path
@@ -577,19 +639,8 @@ class Xacto(object):
 
     def find_module(self, name, path=None):
         loader = self._ns.find_module(name)
-        if not loader:
-            deferred = getattr(self, '_deferred', None)
-            if deferred is not None:
-                if deferred.pop(name, None):
-                    # already deferred once, perm drop the cache
-                    del self._deferred
-                    # and fall thru to default importer
-                    return None
-
-                loader = DeferredModule.loader_cls()
-                self._deferred[name] = loader
-
-        # None == try next importer
+        if not loader and self._deferred_ok:
+            loader = MockModule(name=name, importer=self)
         return loader
 
     def load_module(self, name):
@@ -1010,10 +1061,8 @@ class Xacto(object):
         if not ns:
             return self._parser.error('no exports found')
 
-        import_all = getattr(ns._module.__dict__, 'import_all', None)
-        if import_all:
-            # see DeferredModule.dict_cls.__missing__
-            tuple(import_all())
+        # python2
+        self._import_all()
 
         args = list()
         xacto_call = kwds.pop('xacto_call')
