@@ -28,7 +28,9 @@ Quickstart
 
     # ln -s $(which xacto) do
 
-#. Create python file at ``tools/work.py``::
+#. Create python file at ``tools/work.py``:
+
+.. code-block:: python
 
     from pprint import pprint
 
