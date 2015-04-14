@@ -564,8 +564,8 @@ class Xacto(object):
                 resolved = __import__(module.__name__, fromlist=module.gets)
                 for submodule in module.iter_imports:
                     __import__(submodule.__name__, fromlist=submodule.gets)
-                for attr in module.gets:
-                    resolved = getattr(resolved, attr)
+                if key in module.gets:
+                    resolved = getattr(resolved, key)
             finally:
                 self._deferred_ok = True
 
