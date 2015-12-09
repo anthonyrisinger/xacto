@@ -272,10 +272,11 @@ class DeferredModule(object):
                     warnings.warn(msg, ImportWarning, stacklevel=2)
                     return self[key]
 
-            try:
-                return super(DeferredModule.dict_cls, self).__missing__(key)
-            except AttributeError:
-                raise KeyError(key)
+            if '__builtins__' in self and key in self['__builtins__']:
+                # Python 2.x seems to do this for us, but no harm doing ourselves.
+                return self['__builtins__'][key]
+
+            raise KeyError(key)
 
         def __setitem__(self, key, item):
             # if it's a placeholder, don't actually save it... the first
@@ -290,7 +291,7 @@ class DeferredModule(object):
 
 
     def __new__(cls, *args, **kwds):
-        self = super(DeferredModule, cls).__new__(cls, *args, **kwds)
+        self = super(DeferredModule, cls).__new__(cls)
         self.__dict__ = self.dict_cls()
         return self
 
